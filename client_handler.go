@@ -409,7 +409,8 @@ func (c *clientHandler) HandleCommands() {
 		}
 
 		lineSlice, isPrefix, err := c.reader.ReadLine()
-
+		//读取的行数据超过了缓冲区（本例中为4096）的大小，并且返回的数据被截断
+		//为了读取完整的行，需要连续调用ReadLine,直到isPrefix为false
 		if isPrefix {
 			if c.debug {
 				c.logger.Warn("Received line too long, disconnecting client",
@@ -430,6 +431,7 @@ func (c *clientHandler) HandleCommands() {
 		if c.debug {
 			c.logger.Debug("Received line", "line", line)
 		}
+		c.logger.Debug("Received line", "line", line)
 
 		c.handleCommand(line)
 	}
@@ -471,6 +473,7 @@ func (c *clientHandler) handleCommandsStreamError(err error) {
 
 // handleCommand takes care of executing the received line
 func (c *clientHandler) handleCommand(line string) {
+	//
 	command, param := parseLine(line)
 	command = strings.ToUpper(command)
 
