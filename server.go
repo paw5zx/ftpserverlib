@@ -312,7 +312,7 @@ func (server *FtpServer) clientArrival(conn net.Conn) {
 	c := server.newClientHandler(conn, id, server.settings.DefaultTransferType)
 	go c.HandleCommands()
 
-	c.logger.Debug("Client connected", "clientIp", conn.RemoteAddr())
+	c.logger.Debug("Client connected!", "clientIp", conn.RemoteAddr())
 }
 
 // clientDeparture
