@@ -128,11 +128,14 @@ func (server *FtpServer) newClientHandler(connection net.Conn, id uint32, transf
 }
 
 func (c *clientHandler) disconnect() {
+	//调用net.Conn的Close
 	if err := c.conn.Close(); err != nil {
 		c.logger.Warn(
 			"Problem disconnecting a client",
 			"err", err,
 		)
+	} else {
+		c.logger.Debug("disconnect successed")
 	}
 }
 
@@ -309,11 +312,14 @@ func (c *clientHandler) setLastDataChannel(channel DataChannel) {
 
 func (c *clientHandler) closeTransfer() error {
 	var err error
+	//检查是否有活动的传输连接
 	if c.transfer != nil {
 		err = c.transfer.Close()
+		//更新clientHandler状态
 		c.isTransferOpen = false
 		c.transfer = nil
 
+		//c.logger.Debug("Transfer connection closed")
 		if c.debug {
 			c.logger.Debug("Transfer connection closed")
 		}
@@ -324,6 +330,7 @@ func (c *clientHandler) closeTransfer() error {
 
 // Close closes the active transfer, if any, and the control connection
 func (c *clientHandler) Close() error {
+	c.logger.Warn("call clientHandler close")
 	c.transferMu.Lock()
 	defer c.transferMu.Unlock()
 
@@ -351,7 +358,8 @@ func (c *clientHandler) Close() error {
 func (c *clientHandler) end() {
 	c.server.driver.ClientDisconnected(c)
 	c.server.clientDeparture(c)
-
+	//在disconnect调用过c.conn.Close()了，所以这里应该会报出重复关闭
+	//可能是为了防止之前没关闭成功？
 	if err := c.conn.Close(); err != nil {
 		c.logger.Debug(
 			"Problem closing control connection",
@@ -380,7 +388,9 @@ func (c *clientHandler) isCommandAborted() (aborted bool) {
 }
 
 // HandleCommands reads the stream of commands
+//一次for只处理一个FTP命令
 func (c *clientHandler) HandleCommands() {
+	//return后调用此函数
 	defer c.end()
 
 	if msg, err := c.server.driver.ClientConnected(c); err == nil {
@@ -396,7 +406,7 @@ func (c *clientHandler) HandleCommands() {
 			if c.debug {
 				c.logger.Debug("Client disconnected", "clean", true)
 			}
-
+			//c.logger.Debug("Client disconnected", "clean", true)
 			return
 		}
 
@@ -431,7 +441,7 @@ func (c *clientHandler) HandleCommands() {
 		if c.debug {
 			c.logger.Debug("Received line", "line", line)
 		}
-		c.logger.Debug("Received line", "line", line)
+		//c.logger.Debug("Received line", "line", line)
 
 		c.handleCommand(line)
 	}
@@ -447,7 +457,7 @@ func (c *clientHandler) handleCommandsStreamError(err error) {
 				c.logger.Error("Could not set read deadline", "err", err)
 			}
 
-			c.logger.Info("Client IDLE timeout", "err", err)
+			c.logger.Error("Client IDLE timeout", "err", err)
 			c.writeMessage(
 				StatusServiceNotAvailable,
 				fmt.Sprintf("command timeout (%d seconds): closing control connection", c.server.settings.IdleTimeout))
@@ -473,7 +483,8 @@ func (c *clientHandler) handleCommandsStreamError(err error) {
 
 // handleCommand takes care of executing the received line
 func (c *clientHandler) handleCommand(line string) {
-	//
+	//USER root
+	//TYPE I
 	command, param := parseLine(line)
 	command = strings.ToUpper(command)
 
@@ -530,6 +541,7 @@ func (c *clientHandler) handleCommand(line string) {
 		// receiving the StatusFileStatusOK response. This is very unlikely
 		// A lock is not required here, we cannot have another concurrent ABOR
 		// or transfer active here
+		//注意，不可以有两个并发传输
 		c.isTransferAborted = false
 
 		c.transferWg.Add(1)
@@ -557,7 +569,7 @@ func (c *clientHandler) executeCommandFn(cmdDesc *CommandDescription, command, p
 			)
 		}
 	}()
-
+	//执行FTP command对应的处理方法
 	if err := cmdDesc.Fn(c, param); err != nil {
 		c.writeMessage(StatusSyntaxErrorNotRecognised, fmt.Sprintf("Error: %s", err))
 	}
@@ -567,6 +579,8 @@ func (c *clientHandler) writeLine(line string) {
 	if c.debug {
 		c.logger.Debug("Sending answer", "line", line)
 	}
+
+	//c.logger.Debug("Sending answer", "line", line)
 
 	if _, err := c.writer.WriteString(fmt.Sprintf("%s\r\n", line)); err != nil {
 		c.logger.Warn(
@@ -585,6 +599,7 @@ func (c *clientHandler) writeLine(line string) {
 }
 
 func (c *clientHandler) writeMessage(code int, message string) {
+
 	lines := getMessageLines(message)
 
 	for idx, line := range lines {

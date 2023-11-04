@@ -213,12 +213,18 @@ func (server *FtpServer) Serve() error {
 	var tempDelay time.Duration // how long to sleep on accept failure
 
 	for {
+		//阻塞等待客户端连接
+		//有新客户端连接时，connection被赋予一个net.Conn对象
+		//若server.listener被关闭（途径：Stop()，），则Accept会返回一个错误，可能会使循环退出
 		connection, err := server.listener.Accept()
-
+		server.Logger.Debug("block out!!!!!!!!!!!!!")
 		if err != nil {
+			//判断网络连接是否关闭
+			//关闭就将listener置为nil，并返回
 			if errOp, ok := err.(*net.OpError); ok {
 				// This means we just closed the connection and it's OK
 				if errOp.Err.Error() == "use of closed network connection" {
+					server.Logger.Info("server.listener = nil")
 					server.listener = nil
 
 					return nil
@@ -229,6 +235,8 @@ func (server *FtpServer) Serve() error {
 			// & https://github.com/fclairamb/ftpserverlib/pull/352#pullrequestreview-1077459896
 			// The temporaryError method should replace net.Error.Temporary() when the go team
 			// will have provided us a better way to detect temporary errors.
+			//对临时性网络错误（如瞬时网络拥塞）进行处理
+			//对这些问题使用重连的解决方法
 			if ne, ok := err.(net.Error); ok && ne.Temporary() { //nolint:staticcheck
 				if tempDelay == 0 {
 					tempDelay = 5 * time.Millisecond

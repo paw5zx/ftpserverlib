@@ -20,3 +20,4 @@ require (
 )
 
 replace github.com/secsy/goftp => github.com/drakkan/goftp v0.0.0-20201220151643-27b7174e8caf
+
